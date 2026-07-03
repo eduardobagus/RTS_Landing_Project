@@ -17,18 +17,14 @@ const DB_NAME = 'company_cms';
 let db;
 
 async function initDatabase() {
-    // Connect without selecting a database first
     const conn = await mysql.createConnection(DB_CONFIG);
 
-    // Create DB if it doesn't exist
     await conn.query(`CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\``);
     console.log(`Database '${DB_NAME}' siap.`);
     await conn.end();
 
-    // Now create a pool connected to the DB
     db = mysql.createPool({ ...DB_CONFIG, database: DB_NAME });
 
-    // Create news table if it doesn't exist
     await db.query(`
         CREATE TABLE IF NOT EXISTS news (
             id            INT AUTO_INCREMENT PRIMARY KEY,
@@ -43,7 +39,6 @@ async function initDatabase() {
     console.log('Berhasil terhubung ke database MySQL.');
 }
 
-// Health check / root route
 app.get('/', (req, res) => {
     res.json({
         status: 'ok',
@@ -54,7 +49,6 @@ app.get('/', (req, res) => {
     });
 });
 
-// GET latest 3 published news
 app.get('/api/news/latest', async (req, res) => {
     try {
         const [rows] = await db.query(`
@@ -71,7 +65,20 @@ app.get('/api/news/latest', async (req, res) => {
     }
 });
 
-// Start
+app.get('/api/jobs', async (req, res) => {
+    try {
+        const [rows] = await db.query(`
+            SELECT *
+            FROM job_openings
+            ORDER BY posted_on DESC
+        `);
+        res.json(rows);
+    } catch (err) {
+        console.error('Query error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 initDatabase()
     .then(() => {
         app.listen(5000, () => {

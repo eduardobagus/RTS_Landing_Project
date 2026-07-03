@@ -1,7 +1,7 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'PT Rajawali Telekomunikasi Selular (PT RTS)',
+  title: 'PT Rajawali Telekomunikasi Selular',
   description: 'PT Rajawali Telekomunikasi Selular - Perusahaan nasional di bidang teknologi, telekomunikasi, dan ekosistem pembayaran digital.',
 };
 

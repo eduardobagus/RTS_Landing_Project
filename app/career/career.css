@@ -1,0 +1,9 @@
+/* Career Page Specific Styles */
+.job-row:hover {
+    background: rgba(56, 182, 255, 0.05) !important;
+}
+
+.job-select:focus {
+    border-color: var(--accent-primary) !important;
+    box-shadow: 0 0 10px var(--accent-glow);
+}
