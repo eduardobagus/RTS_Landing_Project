@@ -1,0 +1,188 @@
+const express = require('express');
+const mysql = require('mysql2/promise');
+const cors = require('cors');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+const DB_CONFIG = {
+    host: 'localhost',
+    user: 'root',
+    password: '',
+};
+
+const DB_NAME = 'company_cms';
+
+let db;
+
+async function initDatabase() {
+    const conn = await mysql.createConnection(DB_CONFIG);
+
+    await conn.query(`CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\``);
+    console.log(`Database '${DB_NAME}' siap.`);
+    await conn.end();
+
+    db = mysql.createPool({ ...DB_CONFIG, database: DB_NAME });
+
+    await db.query(`
+        CREATE TABLE IF NOT EXISTS news (
+            id            INT AUTO_INCREMENT PRIMARY KEY,
+            title         VARCHAR(255)  NOT NULL,
+            excerpt       TEXT,
+            thumbnail     VARCHAR(500),
+            is_published  TINYINT(1)    NOT NULL DEFAULT 1,
+            created_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+    console.log("Tabel 'news' siap.");
+
+    await db.query(`
+        CREATE TABLE IF NOT EXISTS job_openings (
+            id              INT AUTO_INCREMENT PRIMARY KEY,
+            job_title       VARCHAR(255)  NOT NULL,
+            department      VARCHAR(100)  NOT NULL,
+            employment_type VARCHAR(100)  NOT NULL,
+            posted_on       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+    console.log("Tabel 'job_openings' siap.");
+    console.log('Berhasil terhubung ke database MySQL.');
+}
+
+app.get('/', (req, res) => {
+    res.json({
+        status: 'ok',
+        message: 'PT RTS CMS Backend berjalan',
+        endpoints: {
+            latestNews: 'GET /api/news/latest',
+        },
+    });
+});
+
+app.get('/api/news/latest', async (req, res) => {
+    try {
+        const [rows] = await db.query(`
+            SELECT id, title, excerpt, thumbnail, created_at
+            FROM news
+            WHERE is_published = 1
+            ORDER BY created_at DESC
+            LIMIT 3
+        `);
+        res.json(rows);
+    } catch (err) {
+        console.error('Query error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/news', async (req, res) => {
+    try {
+        const [rows] = await db.query(`SELECT * FROM news ORDER BY created_at DESC`);
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/news', async (req, res) => {
+    const { title, excerpt } = req.body;
+    if (!title || !excerpt) {
+        return res.status(400).json({ error: 'Data tidak lengkap' });
+    }
+    try {
+        const [result] = await db.query(
+            'INSERT INTO news (title, excerpt, is_published) VALUES (?, ?, 1)',
+            [title, excerpt]
+        );
+        res.status(201).json({ id: result.insertId, title, excerpt });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/news/:id', async (req, res) => {
+    try {
+        await db.query('DELETE FROM news WHERE id = ?', [req.params.id]);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/api/news/:id', async (req, res) => {
+    const { title, excerpt } = req.body;
+    if (!title || !excerpt) return res.status(400).json({ error: 'Data tidak lengkap' });
+    try {
+        await db.query('UPDATE news SET title = ?, excerpt = ? WHERE id = ?', [title, excerpt, req.params.id]);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/jobs/:id', async (req, res) => {
+    try {
+        await db.query('DELETE FROM job_openings WHERE id = ?', [req.params.id]);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/api/jobs/:id', async (req, res) => {
+    const { job_title, department, employment_type, description, requirements } = req.body;
+    if (!job_title || !department || !employment_type) return res.status(400).json({ error: 'Data tidak lengkap' });
+    try {
+        await db.query(
+            'UPDATE job_openings SET job_title = ?, department = ?, employment_type = ?, description = ?, requirements = ? WHERE id = ?',
+            [job_title, department, employment_type, description || null, requirements || null, req.params.id]
+        );
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/jobs', async (req, res) => {
+    try {
+        const [rows] = await db.query(`
+            SELECT *
+            FROM job_openings
+            ORDER BY posted_on DESC
+        `);
+        res.json(rows);
+    } catch (err) {
+        console.error('Query error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/jobs', async (req, res) => {
+    const { job_title, department, employment_type, description, requirements } = req.body;
+    if (!job_title || !department || !employment_type) {
+        return res.status(400).json({ error: 'Data tidak lengkap' });
+    }
+    
+    try {
+        const [result] = await db.query(
+            'INSERT INTO job_openings (job_title, department, employment_type, description, requirements) VALUES (?, ?, ?, ?, ?)',
+            [job_title, department, employment_type, description || null, requirements || null]
+        );
+        res.status(201).json({ id: result.insertId, job_title, department, employment_type, description, requirements });
+    } catch (err) {
+        console.error('Insert error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+initDatabase()
+    .then(() => {
+        app.listen(5000, () => {
+            console.log('Server Backend CMS berjalan di http://localhost:5000');
+        });
+    })
+    .catch((err) => {
+        console.error('Gagal inisialisasi database:', err.message);
+        process.exit(1);
+    });
